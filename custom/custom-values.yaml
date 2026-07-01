@@ -1,0 +1,215 @@
+# apps/supabase/values/supabase-values.yaml
+
+# ── Composants désactivés (gérés par l'infra existante) ──────────
+db:
+  enabled: false      # CNPG dédié supabase-db utilisé
+
+minio:
+  enabled: false      # MinIO existant sur s3.etamcorp.online
+
+# ── Secrets ──────────────────────────────────────────────────────
+secret:
+  jwt:
+    secretRef: supabase-jwt
+    secretRefKey:
+      anonKey: anonKey
+      serviceKey: serviceKey
+      secret: secret
+
+  apikey:
+    secretRef: supabase-jwt
+    secretRefKey:
+      publishableKey: publishableKey
+      secretKey: secretKey
+      anonKeyAsymmetric: anonKeyAsymmetric
+      serviceRoleKeyAsymmetric: serviceRoleKeyAsymmetric
+      jwtKeys: jwtKeys
+      jwtJwks: jwtJwks
+
+  db:
+    secretRef: supabase-db-credentials
+    secretRefKey:
+      username: username
+      password: password
+      host: host
+      port: port
+      database: database
+
+  smtp:
+    secretRef: supabase-smtp
+    secretRefKey:
+      username: username
+      password: password
+
+  dashboard:
+    secretRef: supabase-dashboard
+    secretRefKey:
+      username: username
+      password: password
+      openAiApiKey: openAiApiKey
+
+  analytics:
+    secretRef: supabase-analytics
+    secretRefKey:
+      apiKey: apiKey
+      publicAccessToken: publicAccessToken
+      privateAccessToken: privateAccessToken
+
+  s3:
+    secretRef: supabase-s3-secret
+    secretRefKey:
+      keyId: keyId
+      accessKey: accessKey
+  realtime:
+    secretRef: supabase-realtime
+    secretRefKey:
+      secretKeyBase: secretKeyBase
+
+# ── Studio ───────────────────────────────────────────────────────
+studio:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  environment:
+    STUDIO_DEFAULT_ORGANIZATION: "Etama"
+    STUDIO_DEFAULT_PROJECT: "etama-main"
+    SUPABASE_PUBLIC_URL: "https://supabase.etamcorp.online"
+    NEXT_PUBLIC_ENABLE_LOGS: "true"
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    hosts:
+      - host: studio.etamcorp.online
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: supabase-studio-tls
+        hosts:
+          - studio.etamcorp.online
+
+# ── Kong API Gateway ─────────────────────────────────────────────
+kong:
+  environment:
+    KONG_DATABASE: "off"
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    hosts:
+      - host: supabase.etamcorp.online
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: supabase-api-tls
+        hosts:
+          - supabase.etamcorp.online
+
+# ── Auth (GoTrue) ────────────────────────────────────────────────
+auth:
+  environment:
+    API_EXTERNAL_URL: "https://supabase.etamcorp.online"
+    GOTRUE_SITE_URL: "https://supabase.etamcorp.online"
+    GOTRUE_SMTP_HOST: "mail.etamcorp.site"
+    GOTRUE_SMTP_PORT: "587"
+    GOTRUE_SMTP_SENDER_NAME: "Etama"
+    GOTRUE_SMTP_ADMIN_EMAIL: "shopsn@etamcorp.site"
+    GOTRUE_MAILER_AUTOCONFIRM: "false"
+    GOTRUE_DISABLE_SIGNUP: "false"
+    GOTRUE_JWT_EXP: "3600"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# ── PostgREST ────────────────────────────────────────────────────
+rest:
+  environment:
+    PGRST_DB_SCHEMA: "public,storage,graphql_public"
+    PGRST_DB_ANON_ROLE: "anon"
+    PGRST_DB_POOL: "10"
+    PGRST_DB_POOL_ACQUISITION_TIMEOUT: "10"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "300m"
+
+# ── Realtime ─────────────────────────────────────────────────────
+realtime:
+  environment:
+    DB_HOST: "supabase-db-rw.supabase.svc.cluster.local"
+    DB_PORT: "5432"
+    DB_NAME: "supabase"
+    DB_SSL: "true"
+    # Redis direct sur port 6379 (Sentinel transparent)
+    REDIS_URL: "redis://any/Die@jcfd.4name@redis-headless.redis.svc.cluster.local:6379"
+    FLY_ALLOC_ID: "supabase-realtime"    # requis par l'image Realtime
+    FLY_APP_NAME: "realtime"
+    ERL_AFLAGS: "-proto_dist inet_tcp"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# ── Storage API → MinIO ──────────────────────────────────────────
+storage:
+  environment:
+    STORAGE_BACKEND: s3
+    GLOBAL_S3_ENDPOINT: "https://s3.etamcorp.online"
+    GLOBAL_S3_PROTOCOL: "https"
+    GLOBAL_S3_FORCE_PATH_STYLE: "true"
+    AWS_DEFAULT_REGION: "us-east-1"       # valeur stub pour MinIO
+    STORAGE_S3_BUCKET: "supabase-storage"
+    FILE_SIZE_LIMIT: "52428800"           # 50 MB
+    ENABLE_IMAGE_TRANSFORMATION: "true"
+    IMGPROXY_URL: "http://supabase-imgproxy:8080"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "300m"
+
+# ── Analytics (Logflare) ─────────────────────────────────────────
+analytics:
+  environment:
+    LOGFLARE_NODE_HOST: "127.0.0.1"
+    DB_DATABASE: "supabase"
+    DB_HOSTNAME: "supabase-db-rw.supabase.svc.cluster.local"
+    DB_PORT: "5432"
+    DB_SCHEMA: "_analytics"
+    LOGFLARE_MIN_CLUSTER_SIZE: "1"
+
+# ── Vector (logs pipeline) ────────────────────────────────────────
+vector:
+  # Accès aux logs pods sur le node — requis par Vector
+  volumeMounts:
+    - name: pod-logs
+      mountPath: /var/log/pods
+      readOnly: true
+  volumes:
+    - name: pod-logs
+      hostPath:
+        path: /var/log/pods   # chemin standard k3s
