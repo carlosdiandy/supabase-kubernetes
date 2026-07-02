@@ -116,10 +116,10 @@ environment:
     DB_USER: "supabase_auth_admin"    # chart v0.5.7 : DB_USER (pas DB_USERNAME)
     DB_DRIVER: "postgres"
     DB_SSL: "disable"                 # ou "require" si SSL activé sur CNPG
-    API_EXTERNAL_URL: "https://supabase.etamcorp.online"
+    API_EXTERNAL_URL: "https://studio.etamcorp.online"
     GOTRUE_API_HOST: "0.0.0.0"
     GOTRUE_API_PORT: "9999"
-    GOTRUE_SITE_URL: "https://supabase.etamcorp.online"
+    GOTRUE_SITE_URL: "https://studio.etamcorp.online"
     GOTRUE_URI_ALLOW_LIST: "*"
     GOTRUE_DISABLE_SIGNUP: "false"
     GOTRUE_JWT_DEFAULT_GROUP_NAME: "authenticated"
@@ -204,7 +204,7 @@ environment:
     POSTGRES_PORT: "5432"
     DEFAULT_ORGANIZATION_NAME: "Etama"
     DEFAULT_PROJECT_NAME: "etama-main"
-    SUPABASE_PUBLIC_URL: "https://supabase.etamcorp.online"
+    SUPABASE_PUBLIC_URL: "https://studio.etamcorp.online"
     NEXT_PUBLIC_ENABLE_LOGS: "true"
     NEXT_ANALYTICS_BACKEND_PROVIDER: "postgres"
 
@@ -268,11 +268,11 @@ ingress:
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
       # NE PAS mettre rewrite-target: / → casse le routing Kong
     hosts:
-      - host: supabase.etamcorp.online
+      - host: studio.etamcorp.online
         paths:
           - path: /
             pathType: Prefix
     tls:
       - secretName: supabase-api-tls
         hosts:
-          - supabase.etamcorp.online
+          - studio.etamcorp.online
