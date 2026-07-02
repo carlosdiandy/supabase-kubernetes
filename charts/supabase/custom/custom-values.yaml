@@ -30,16 +30,6 @@ secret:
       serviceKey: serviceKey
       secret: secret
 
-  apikey:
-    secretRef: supabase-jwt          # même secret, clés asymétriques vides
-    secretRefKey:
-      publishableKey: publishableKey
-      secretKey: secretKey
-      anonKeyAsymmetric: anonKeyAsymmetric
-      serviceRoleKeyAsymmetric: serviceRoleKeyAsymmetric
-      jwtKeys: jwtKeys
-      jwtJwks: jwtJwks
-
   db:
     # IMPORTANT : host et port sont des champs DIRECTS selon le chart v0.5.7
     # Ils ne vont PAS dans secretRefKey — le chart les lit séparément
@@ -113,7 +103,7 @@ environment:
   analytics:
     LOGFLARE_NODE_HOST: "127.0.0.1"
     DB_USERNAME: "supabase_admin"
-    DB_DATABASE: "_supabase"          # chart v0.5.7 : "_supabase" (avec underscore), PAS "supabase"
+    DB_DATABASE: "supabase"          # chart v0.5.7 : "_supabase" (avec underscore), PAS "supabase"
     DB_DRIVER: "postgresql"
     DB_SCHEMA: "_analytics"
     POSTGRES_BACKEND_SCHEMA: "_analytics"
@@ -168,7 +158,7 @@ environment:
     # Redis pour la présence Realtime
     # $(REDIS_PASSWORD) ne fonctionne PAS ici — mettre le mot de passe directement
     # ou laisser vide si Redis sans auth depuis le namespace supabase
-    REDIS_URL: "redis://:<MOT_DE_PASSE_REDIS>@redis-headless.redis.svc.cluster.local:6379"
+    REDIS_URL: "redis://:any/Die@jcfd.4name@redis-headless.redis.svc.cluster.local:6379"
 
   rest:
     DB_USER: "authenticator"          # chart v0.5.7 : DB_USER = authenticator
