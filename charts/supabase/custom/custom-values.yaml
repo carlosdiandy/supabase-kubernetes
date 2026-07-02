@@ -272,6 +272,6 @@ ingress:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: supabase-api-tls
+    - secretName: supabase-tls
       hosts:
         - studio.etamcorp.online
