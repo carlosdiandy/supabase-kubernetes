@@ -1,182 +1,288 @@
+# supabase-values.yaml
+# Chart: supabase-community/supabase-kubernetes v0.5.7
+# Source officielle: https://github.com/supabase-community/supabase-kubernetes/blob/main/charts/supabase/values.yaml
+# Cluster: etama / k3s / Hetzner
+# DB: CloudNativePG dédié supabase-db (namespace supabase)
+# Storage: MinIO existant (s3.etamcorp.online)
 
-# ─────────────────────────────────────────────
-# 🚨 DATABASE EXTERNE (CNPG)
-# ─────────────────────────────────────────────
-
-deployment:
-  db:
-    enabled: false   # ✅ external CNPG
-  minio:
-    enabled: false   # ✅ external S3
-
-persistence:
-  db:
-    enabled: false   # ❌ inutile (CNPG)
-  minio:
-    enabled: false
-
-# ─────────────────────────────────────────────
-# 🔐 SECRETS (VERSION UNIFIÉE)
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# 1. SECRETS
+# ─────────────────────────────────────────────────────────────────
+# STRUCTURE EXACTE du chart v0.5.7 :
+#
+# secret:
+#   jwt:           → anonKey / serviceKey / secret (inline ou secretRef)
+#   apikey:        → publishableKey / secretKey / anonKeyAsymmetric / ... (asymétrique, laisser vide si HS256)
+#   db:            → password / database (inline ou secretRef) + host/port = champs DIRECTS (pas dans secretRefKey)
+#   analytics:     → publicAccessToken / privateAccessToken (PAS d'apiKey !)
+#   smtp:          → username / password
+#   dashboard:     → username / password / openAiApiKey
+#   s3:            → keyId / accessKey
+#   realtime:      → secretKeyBase
+#   meta:          → cryptoKey
+# ─────────────────────────────────────────────────────────────────
 
 secret:
-
   jwt:
     secretRef: supabase-jwt
+    secretRefKey:
+      anonKey: anonKey
+      serviceKey: serviceKey
+      secret: secret
+
+  apikey:
+    secretRef: supabase-jwt          # même secret, clés asymétriques vides
+    secretRefKey:
+      publishableKey: publishableKey
+      secretKey: secretKey
+      anonKeyAsymmetric: anonKeyAsymmetric
+      serviceRoleKeyAsymmetric: serviceRoleKeyAsymmetric
+      jwtKeys: jwtKeys
+      jwtJwks: jwtJwks
 
   db:
-    host: supabase-db-rw.supabase.svc.cluster.local
+    # IMPORTANT : host et port sont des champs DIRECTS selon le chart v0.5.7
+    # Ils ne vont PAS dans secretRefKey — le chart les lit séparément
+    host: "supabase-db-rw.supabase.svc.cluster.local"
     port: "5432"
-    database: supabase
-    password: ""   # ⚠️ idéalement ExternalSecret/Vault
+    secretRef: supabase-db-credentials
+    secretRefKey:
+      password: password
+      database: database          # valeur dans le secret K8s = "supabase"
+      # username non requis ici — chaque service a son propre DB_USER
 
   analytics:
     secretRef: supabase-analytics
+    secretRefKey:
+      publicAccessToken: publicAccessToken
+      privateAccessToken: privateAccessToken
+      # PAS d'apiKey — n'existe pas dans le chart v0.5.7
 
   smtp:
     secretRef: supabase-smtp
+    secretRefKey:
+      username: username
+      password: password
 
   dashboard:
     secretRef: supabase-dashboard
+    secretRefKey:
+      username: username
+      password: password
+      openAiApiKey: openAiApiKey
 
   s3:
     secretRef: supabase-s3-secret
+    secretRefKey:
+      keyId: keyId
+      accessKey: accessKey
 
   realtime:
     secretRef: supabase-realtime
+    secretRefKey:
+      secretKeyBase: secretKeyBase
 
+  meta:
+    secretRef: supabase-meta
+    secretRefKey:
+      cryptoKey: cryptoKey
 
-# ─────────────────────────────────────────────
-# 🌐 STUDIO
-# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# 2. DEPLOYMENT — désactiver db et minio (gérés en dehors du chart)
+# ─────────────────────────────────────────────────────────────────
+# STRUCTURE EXACTE du chart : deployment.<composant>.enabled
+# db.enabled: false → le chart ne déploie pas de StatefulSet Postgres
+# minio.enabled: false → le chart ne déploie pas MinIO interne
+# ─────────────────────────────────────────────────────────────────
 
-studio:
-  environment:
-    STUDIO_DEFAULT_ORGANIZATION: "Etama"
-    STUDIO_DEFAULT_PROJECT: "etama-main"
+deployment:
+  db:
+    enabled: false      # CNPG dédié supabase-db utilisé à la place
+  minio:
+    enabled: false      # MinIO existant sur s3.etamcorp.online
+
+# ─────────────────────────────────────────────────────────────────
+# 3. ENVIRONMENT — variables exactes du chart v0.5.7
+# ─────────────────────────────────────────────────────────────────
+# ATTENTION : le chart utilise environment.<composant>.<VAR>
+# Les variables doivent correspondre EXACTEMENT aux noms attendus
+# ─────────────────────────────────────────────────────────────────
+
+environment:
+
+  analytics:
+    LOGFLARE_NODE_HOST: "127.0.0.1"
+    DB_USERNAME: "supabase_admin"
+    DB_DATABASE: "_supabase"          # chart v0.5.7 : "_supabase" (avec underscore), PAS "supabase"
+    DB_DRIVER: "postgresql"
+    DB_SCHEMA: "_analytics"
+    POSTGRES_BACKEND_SCHEMA: "_analytics"
+    LOGFLARE_SINGLE_TENANT: "true"
+    LOGFLARE_SUPABASE_MODE: "true"
+    LOGFLARE_FEATURE_FLAG_OVERRIDE: "multibackend=true"
+    LOGFLARE_MIN_CLUSTER_SIZE: "1"
+
+  auth:
+    DB_USER: "supabase_auth_admin"    # chart v0.5.7 : DB_USER (pas DB_USERNAME)
+    DB_DRIVER: "postgres"
+    DB_SSL: "disable"                 # ou "require" si SSL activé sur CNPG
+    API_EXTERNAL_URL: "https://supabase.etamcorp.online"
+    GOTRUE_API_HOST: "0.0.0.0"
+    GOTRUE_API_PORT: "9999"
+    GOTRUE_SITE_URL: "https://supabase.etamcorp.online"
+    GOTRUE_URI_ALLOW_LIST: "*"
+    GOTRUE_DISABLE_SIGNUP: "false"
+    GOTRUE_JWT_DEFAULT_GROUP_NAME: "authenticated"
+    GOTRUE_JWT_ADMIN_ROLES: "service_role"
+    GOTRUE_JWT_AUD: "authenticated"
+    GOTRUE_JWT_EXP: "3600"
+    GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+    GOTRUE_MAILER_AUTOCONFIRM: "false"
+    GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+    GOTRUE_SMTP_ADMIN_EMAIL: "noreply@etamcorp.site"
+    GOTRUE_SMTP_HOST: "mail.etamcorp.site"
+    GOTRUE_SMTP_PORT: "587"
+    GOTRUE_SMTP_SENDER_NAME: "Etama"
+    GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+    GOTRUE_SMS_AUTOCONFIRM: "false"
+    GOTRUE_MAILER_URLPATHS_INVITE: "/auth/v1/verify"
+    GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth/v1/verify"
+    GOTRUE_MAILER_URLPATHS_RECOVERY: "/auth/v1/verify"
+    GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: "/auth/v1/verify"
+
+  realtime:
+    DB_USER: "supabase_admin"         # chart v0.5.7 : DB_USER
+    DB_SSL: "false"
+    PORT: "4000"
+    FLY_ALLOC_ID: "fly123"
+    FLY_APP_NAME: "realtime"
+    ENABLE_TAILSCALE: "false"
+    DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+    DB_ENC_KEY: "supabaserealtime"    # surcharger avec une valeur custom
+    ERL_AFLAGS: "-proto_dist inet_tcp"
+    DNS_NODES: "''"
+    RLIMIT_NOFILE: "10000"
+    APP_NAME: "realtime"
+    SEED_SELF_HOST: "true"
+    RUN_JANITOR: "true"
+    # Redis pour la présence Realtime
+    # $(REDIS_PASSWORD) ne fonctionne PAS ici — mettre le mot de passe directement
+    # ou laisser vide si Redis sans auth depuis le namespace supabase
+    REDIS_URL: "redis://:<MOT_DE_PASSE_REDIS>@redis-headless.redis.svc.cluster.local:6379"
+
+  rest:
+    DB_USER: "authenticator"          # chart v0.5.7 : DB_USER = authenticator
+    DB_DRIVER: "postgres"
+    DB_SSL: "disable"
+    PGRST_DB_SCHEMAS: "public,storage,graphql_public"   # PGRST_DB_SCHEMAS (pas PGRST_DB_SCHEMA)
+    PGRST_DB_ANON_ROLE: "anon"
+    PGRST_DB_USE_LEGACY_GUCS: "false"
+    PGRST_APP_SETTINGS_JWT_EXP: "3600"
+
+  storage:
+    DB_USER: "supabase_storage_admin"  # chart v0.5.7 : DB_USER
+    DB_DRIVER: "postgres"
+    DB_SSL: "disable"
+    REQUEST_ALLOW_X_FORWARDED_PATH: "true"
+    FILE_SIZE_LIMIT: "52428800"
+    FILE_STORAGE_BACKEND_PATH: "/var/lib/storage"
+    TENANT_ID: "stub"
+    REGION: "stub"
+    GLOBAL_S3_BUCKET: "supabase-storage"   # GLOBAL_S3_BUCKET (pas STORAGE_S3_BUCKET)
+    ENABLE_IMAGE_TRANSFORMATION: "true"
+    STORAGE_BACKEND: "s3"
+    GLOBAL_S3_ENDPOINT: "https://s3.etamcorp.online"
+    GLOBAL_S3_PROTOCOL: "https"
+    GLOBAL_S3_FORCE_PATH_STYLE: "true"
+    AWS_DEFAULT_REGION: "us-east-1"    # stub pour MinIO
+
+  meta:
+    DB_USER: "supabase_admin"
+    DB_DRIVER: "postgres"
+    DB_SSL: "disable"
+    PG_META_PORT: "8080"
+
+  functions:
+    DB_USER: "postgres"                # chart v0.5.7 : DB_USER = postgres pour functions
+    DB_DRIVER: "postgresql"
+    DB_SSL: "disable"
+    VERIFY_JWT: "false"
+
+  studio:
+    HOSTNAME: "::"
+    STUDIO_PORT: "3000"
+    POSTGRES_PORT: "5432"
+    DEFAULT_ORGANIZATION_NAME: "Etama"
+    DEFAULT_PROJECT_NAME: "etama-main"
     SUPABASE_PUBLIC_URL: "https://supabase.etamcorp.online"
     NEXT_PUBLIC_ENABLE_LOGS: "true"
+    NEXT_ANALYTICS_BACKEND_PROVIDER: "postgres"
 
-  ingress:
+  kong:
+    KONG_DATABASE: "off"
+    KONG_DECLARATIVE_CONFIG: "/usr/local/kong/kong.yml"
+    KONG_DNS_ORDER: "LAST,A,CNAME"
+    KONG_PLUGINS: "request-transformer,cors,key-auth,acl,basic-auth,post-function"
+    KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "160k"
+    KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
+    KONG_LOG_LEVEL: "warn"
+    KONG_NGINX_WORKER_PROCESSES: "2"
+
+  imgproxy:
+    IMGPROXY_BIND: ":5001"
+    IMGPROXY_LOCAL_FILESYSTEM_ROOT: "/"
+    IMGPROXY_USE_ETAG: "true"
+    IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+
+# ─────────────────────────────────────────────────────────────────
+# 4. PERSISTENCE — StorageClass Hetzner pour les PVC
+# ─────────────────────────────────────────────────────────────────
+
+persistence:
+  db:
+    enabled: false                    # géré par CNPG externe
+  storage:
+    storageClassName: "hcloud-volumes"
+    size: 10Gi
+  functions:
+    storageClassName: "hcloud-volumes"
+  imgproxy:
+    storageClassName: "hcloud-volumes"
+  snippets:
+    storageClassName: "hcloud-volumes"
+  deno:
+    storageClassName: "hcloud-volumes"
+  pgsodium:
+    storageClassName: "hcloud-volumes"
+  minio:
+    enabled: false                    # MinIO externe
+
+# ─────────────────────────────────────────────────────────────────
+# 5. INGRESS — Kong et Studio
+# ─────────────────────────────────────────────────────────────────
+# ATTENTION : le chart v0.5.7 limite l'ingress à kong et db uniquement.
+# Studio n'a PAS d'ingress dans le chart — exposer via le service kong
+# ou créer un Ingress manuel séparé pour studio.
+#
+# L'ingress est configuré sous ingress.<composant> (PAS sous kong.ingress)
+# ─────────────────────────────────────────────────────────────────
+
+ingress:
+  kong:
     enabled: true
     className: nginx
     annotations:
       cert-manager.io/cluster-issuer: "letsencrypt-prod"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    hosts:
-      - host: studio.etamcorp.online
-        paths:
-          - path: /
-            pathType: Prefix
-
-
-# ─────────────────────────────────────────────
-# 🌐 KONG API GATEWAY
-# ─────────────────────────────────────────────
-
-kong:
-  environment:
-    KONG_DATABASE: "off"
-
-  ingress:
-    enabled: true
-    className: nginx
-    annotations:
-      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      # NE PAS mettre rewrite-target: / → casse le routing Kong
     hosts:
       - host: supabase.etamcorp.online
         paths:
           - path: /
             pathType: Prefix
-
-
-# ─────────────────────────────────────────────
-# 🔐 AUTH (GOTRUE)
-# ─────────────────────────────────────────────
-
-auth:
-  environment:
-    API_EXTERNAL_URL: "https://supabase.etamcorp.online"
-    GOTRUE_SITE_URL: "https://supabase.etamcorp.online"
-    GOTRUE_DISABLE_SIGNUP: "false"
-    GOTRUE_MAILER_AUTOCONFIRM: "false"
-    GOTRUE_JWT_EXP: "3600"
-
-
-# ─────────────────────────────────────────────
-# 📡 POSTGREST
-# ─────────────────────────────────────────────
-
-rest:
-  environment:
-    PGRST_DB_SCHEMA: "public,storage,graphql_public"
-    PGRST_DB_ANON_ROLE: "anon"
-    PGRST_DB_POOL: "10"
-
-
-# ─────────────────────────────────────────────
-# ⚡ REALTIME (CNPG + REDIS EXTERNE)
-# ─────────────────────────────────────────────
-
-realtime:
-  environment:
-    DB_HOST: supabase-db-rw.supabase.svc.cluster.local
-    DB_PORT: "5432"
-    DB_NAME: supabase
-    DB_SSL: "true"
-
-    REDIS_URL: "redis://redis-headless.redis.svc.cluster.local:6379"
-
-    FLY_ALLOC_ID: "supabase-realtime"
-    FLY_APP_NAME: "realtime"
-
-
-# ─────────────────────────────────────────────
-# 🗄️ STORAGE (S3 EXTERNE)
-# ─────────────────────────────────────────────
-
-storage:
-  environment:
-    STORAGE_BACKEND: s3
-    GLOBAL_S3_ENDPOINT: "https://s3.etamcorp.online"
-    GLOBAL_S3_PROTOCOL: "https"
-    GLOBAL_S3_FORCE_PATH_STYLE: "true"
-    STORAGE_S3_BUCKET: "supabase-storage"
-    FILE_SIZE_LIMIT: "52428800"
-
-
-# ─────────────────────────────────────────────
-# 📊 ANALYTICS
-# ─────────────────────────────────────────────
-
-analytics:
-  environment:
-    DB_HOSTNAME: supabase-db-rw.supabase.svc.cluster.local
-    DB_DATABASE: supabase
-    DB_SCHEMA: _analytics
-
-
-# ─────────────────────────────────────────────
-# 🧩 VECTOR (LOGS)
-# ─────────────────────────────────────────────
-
-vector:
-  volumeMounts:
-    - name: pod-logs
-      mountPath: /var/log/pods
-      readOnly: true
-
-  volumes:
-    - name: pod-logs
-      hostPath:
-        path: /var/log/pods
-
-
-# ─────────────────────────────────────────────
-# 🌐 GLOBAL INGRESS (OPTIONNEL)
-# ─────────────────────────────────────────────
-
-ingress:
-  enabled: false   # ❌ remplacé par ingress par service
+    tls:
+      - secretName: supabase-api-tls
+        hosts:
+          - supabase.etamcorp.online
