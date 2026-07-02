@@ -102,7 +102,7 @@ environment:
 
   analytics:
     LOGFLARE_NODE_HOST: "127.0.0.1"
-    DB_USERNAME: "supabase_admin"
+    DB_USERNAME: "postgres"
     DB_DATABASE: "supabase"          # chart v0.5.7 : "_supabase" (avec underscore), PAS "supabase"
     DB_DRIVER: "postgresql"
     DB_SCHEMA: "_analytics"
