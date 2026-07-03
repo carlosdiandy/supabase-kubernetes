@@ -84,6 +84,7 @@ secret:
 
 deployment:
   db:
+    enabled: true
     extraVolumes:
       - name: custom-config-fix
         configMap:
@@ -102,6 +103,18 @@ deployment:
 # ─────────────────────────────────────────────────────────────────
 
 environment:
+  analytics:
+    LOGFLARE_NODE_HOST: "127.0.0.1"
+    DB_USERNAME: "supabase_admin"
+    DB_DATABASE: "_supabase"              # valeur officielle du chart v0.5.7
+    DB_DRIVER: "postgresql"
+    DB_SCHEMA: "_analytics"
+    POSTGRES_BACKEND_SCHEMA: "_analytics"
+    LOGFLARE_SINGLE_TENANT: "true"
+    LOGFLARE_SUPABASE_MODE: "true"
+    LOGFLARE_FEATURE_FLAG_OVERRIDE: "multibackend=true"
+    LOGFLARE_MIN_CLUSTER_SIZE: "1"
+  
   auth:
     API_EXTERNAL_URL: "https://studio.etamcorp.online"
     GOTRUE_SITE_URL: "https://studio.etamcorp.online"
