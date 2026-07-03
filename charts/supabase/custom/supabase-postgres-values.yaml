@@ -84,12 +84,13 @@ secret:
 
 deployment:
   db:
-    volumeMounts:
-      - name: pg-custom-config-bypass
+    extraVolumes:
+      - name: custom-config-fix
+        configMap:
+          name: supabase-db-custom-config
+    extraVolumeMounts:
+      - name: custom-config-fix
         mountPath: /etc/postgresql-custom/
-    volumes:
-      - name: pg-custom-config-bypass
-        emptyDir: {}
   minio:
     enabled: false
 
