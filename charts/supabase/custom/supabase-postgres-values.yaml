@@ -85,13 +85,26 @@ secret:
 deployment:
   db:
     enabled: true
-    extraVolumes:
-      - name: custom-config-fix
-        configMap:
-          name: supabase-db-custom-config
-    extraVolumeMounts:
-      - name: custom-config-fix
-        mountPath: /etc/postgresql-custom/
+    extraInitContainers:
+      - name: create-custom-config
+        image: busybox
+        command:
+          - sh
+          - -c
+          - |
+            mkdir -p /etc/postgresql-custom
+            touch /etc/postgresql-custom/wal-g.conf
+            touch /etc/postgresql-custom/read-replica.conf
+            touch /etc/postgresql-custom/supautils.conf
+        volumeMounts:
+          - name: postgresql-custom-config
+            mountPath: /etc/postgresql-custom
+    volumes:
+      - name: postgresql-custom-config
+        emptyDir: {}
+    volumeMounts:
+      - name: postgresql-custom-config
+        mountPath: /etc/postgresql-custom
   minio:
     enabled: false
 
@@ -114,7 +127,7 @@ environment:
     LOGFLARE_SUPABASE_MODE: "true"
     LOGFLARE_FEATURE_FLAG_OVERRIDE: "multibackend=true"
     LOGFLARE_MIN_CLUSTER_SIZE: "1"
-  
+
   auth:
     API_EXTERNAL_URL: "https://studio.etamcorp.online"
     GOTRUE_SITE_URL: "https://studio.etamcorp.online"
