@@ -96,15 +96,6 @@ deployment:
             touch /etc/postgresql-custom/wal-g.conf
             touch /etc/postgresql-custom/read-replica.conf
             touch /etc/postgresql-custom/supautils.conf
-        volumeMounts:
-          - name: postgresql-custom-config
-            mountPath: /etc/postgresql-custom
-    volumes:
-      - name: postgresql-custom-config
-        emptyDir: {}
-    volumeMounts:
-      - name: postgresql-custom-config
-        mountPath: /etc/postgresql-custom
   minio:
     enabled: false
 
