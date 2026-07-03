@@ -87,15 +87,16 @@ deployment:
     enabled: true
     extraInitContainers:
       - name: create-custom-config
-        image: busybox
-        command:
-          - sh
-          - -c
+        args:
           - |
+            echo "Creating /etc/postgresql-custom/* files"
             mkdir -p /etc/postgresql-custom
             touch /etc/postgresql-custom/wal-g.conf
             touch /etc/postgresql-custom/read-replica.conf
             touch /etc/postgresql-custom/supautils.conf
+        command:
+          - /bin/sh
+          - '-c'
   minio:
     enabled: false
 
