@@ -87,6 +87,7 @@ deployment:
     enabled: true
     extraInitContainers:
       - name: create-custom-config
+        image: busybox
         args:
           - |
             echo "Creating /etc/postgresql-custom/* files"
